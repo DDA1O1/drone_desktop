@@ -1,59 +1,112 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+// src/renderer/store/slices/droneSlice.js
+import { createSlice } from '@reduxjs/toolkit';
 
-export const sendCommand = createAsyncThunk(
-    'drone/sendCommand',
-    async (command) => {
-        try {
-            await window.electron.sendDroneCommand(command);
-            return command;
-        } catch (error) {
-            throw new Error(`Failed to send command: ${error.message}`);
-        }
-    }
-);
-
+// Define the initial state structure
+// This should align with the data received via IPC and used by components
 const initialState = {
-    battery: 0,
-    flying: false,
-    speed: {
-        x: 0,
-        y: 0,
-        z: 0
-    },
-    temperature: 0,
-    height: 0,
-    lastCommand: null,
-    error: null,
-    connected: false
+  // Connection & General Status
+  droneConnected: false, // Updated by 'drone:connected'/'drone:disconnected' IPC
+  error: null,          // Updated by 'drone:error' IPC or direct dispatch
+
+  // Media Status
+  streamEnabled: false, // Updated by 'drone:stream-status' IPC
+  isRecording: false,   // Updated by 'drone:recording-status' IPC
+  recordingFiles: null, // string | null - Updated by 'drone:recording-stopped' IPC (holds last saved filename)
+
+  // Detailed Drone Telemetry State
+  // Updated by 'drone:state-update' IPC (maps from main process state)
+  droneState: {
+    // Core metrics often displayed
+    battery: null,      // Mapped from 'bat' in main process state
+    time: null,         // Mapped from 'time' (motor time) in main process state
+    h: null,            // Height (cm)
+    tof: null,          // Time of Flight distance (cm)
+
+    // Optional: Other metrics if you plan to display them
+    pitch: null,
+    roll: null,
+    yaw: null,
+    vgx: null,          // Speed X
+    vgy: null,          // Speed Y
+    vgz: null,          // Speed Z
+    // temp_low: null,     // Example: map from 'templ' if needed
+    // temp_high: null,    // Example: map from 'temph' if needed
+    // barometer: null,    // Example: map from 'baro' if needed
+    // acceleration_x: null, // Example: map from 'agx' if needed
+    // acceleration_y: null, // Example: map from 'agy' if needed
+    // acceleration_z: null, // Example: map from 'agz' if needed
+
+    lastUpdate: null    // Timestamp of the last state packet received
+  }
+  // retryAttempts is removed as connection logic is simplified in Electron version
 };
 
-const droneSlice = createSlice({
-    name: 'drone',
-    initialState,
-    reducers: {
-        updateState(state, action) {
-            return { ...state, ...action.payload };
-        },
-        setError(state, action) {
-            state.error = action.payload;
-        },
-        setConnected(state, action) {
-            state.connected = action.payload;
-        }
+export const droneSlice = createSlice({
+  name: 'drone',
+  initialState,
+  // Reducers define how the state can be updated
+  reducers: {
+    // Action to explicitly set the connection status
+    setDroneConnection: (state, action) => {
+      // action.payload should be a boolean
+      state.droneConnected = action.payload;
+      if (!action.payload) {
+        // Reset related states on disconnect for a cleaner UI
+        state.streamEnabled = false;
+        state.isRecording = false;
+        // Optionally reset telemetry? Or keep last known values? Keep for now.
+        // state.droneState = initialState.droneState;
+      }
     },
-    extraReducers: (builder) => {
-        builder
-            .addCase(sendCommand.pending, (state) => {
-                state.error = null;
-            })
-            .addCase(sendCommand.fulfilled, (state, action) => {
-                state.lastCommand = action.payload;
-            })
-            .addCase(sendCommand.rejected, (state, action) => {
-                state.error = action.error.message;
-            });
+    // Action to explicitly set the error message
+    setError: (state, action) => {
+      // action.payload should be a string or null
+      state.error = action.payload;
+    },
+    // Action to explicitly set the video stream status
+    setStreamEnabled: (state, action) => {
+      // action.payload should be a boolean
+      state.streamEnabled = action.payload;
+      if (!action.payload) {
+        // If stream turns off, recording must also stop
+        state.isRecording = false;
+      }
+    },
+    // Action to explicitly set the recording status
+    setRecordingStatus: (state, action) => {
+      // action.payload should be a boolean
+      state.isRecording = action.payload;
+    },
+    // Action to store the name of the last recorded file
+    setRecordingFiles: (state, action) => {
+      // action.payload should be a string (filename) or null
+      // Storing only the latest filename for simplicity
+      state.recordingFiles = action.payload;
+    },
+    // Action to update the detailed drone telemetry state
+    setDroneState: (state, action) => {
+      // action.payload should be an object matching the adapted structure
+      // from useDroneIPCListeners (e.g., { battery, time, h, tof, ..., lastUpdate })
+      // Directly merge the payload into the droneState part of our slice state
+      state.droneState = { ...state.droneState, ...action.payload };
+      // Ensure lastUpdate is always set from the payload if provided
+      if (action.payload.lastUpdate) {
+          state.droneState.lastUpdate = action.payload.lastUpdate;
+      }
     }
+    // No need for retry attempt reducers anymore
+  }
 });
 
-export const { updateState, setError, setConnected } = droneSlice.actions;
+// Export the action creators generated by createSlice
+export const {
+  setDroneConnection,
+  setError,
+  setStreamEnabled,
+  setRecordingStatus,
+  setRecordingFiles,
+  setDroneState
+} = droneSlice.actions;
+
+// Export the reducer function itself to be used in the store configuration
 export default droneSlice.reducer;
