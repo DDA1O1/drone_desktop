@@ -35,12 +35,12 @@ module.exports = {
         build: [
           {
             // `entry` is just an alias for `build.lib.entry` in the corresponding file of `config`.
-            entry: 'src/main.js',
+            entry: 'src/main/main.js',
             config: 'vite.main.config.mjs',
             target: 'main',
           },
           {
-            entry: 'src/preload.js',
+            entry: 'src/preload/preload.js',
             config: 'vite.preload.config.mjs',
             target: 'preload',
           },
@@ -49,6 +49,7 @@ module.exports = {
           {
             name: 'main_window',
             config: 'vite.renderer.config.mjs',
+            entry: 'src/renderer/main.jsx',
           },
         ],
       },
