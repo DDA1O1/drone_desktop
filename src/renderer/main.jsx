@@ -6,9 +6,10 @@ import  store  from '@/store/store' // Adjust the path to your store configurati
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
     <Provider store={store}>
       {/* Your app component */}
       <App />
     </Provider>
-  
+  </React.StrictMode>
 )
