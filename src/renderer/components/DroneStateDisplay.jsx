@@ -12,34 +12,43 @@ const DroneStateDisplay = () => {
   const droneState = useSelector((state) => state.drone.droneState);
   const droneConnected = useSelector((state) => state.drone.droneConnected); // Get connection status
 
-
   // Helper to format time, handles null/undefined
   const formatTime = (timeValue) => {
-     if (timeValue === null || timeValue === undefined || timeValue === '') {
-         return '--'; // Display placeholder if no time value
-     }
-     // Assuming timeValue is already like "10s" or similar from the adapter
-     return timeValue;
+    if (timeValue === null || timeValue === undefined || timeValue === '') {
+      return '--';
+    }
+    // Convert seconds to a more readable format
+    const seconds = parseInt(timeValue, 10);
+    if (isNaN(seconds)) return '--';
+    
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return minutes > 0 
+      ? `${minutes}m ${remainingSeconds}s`
+      : `${remainingSeconds}s`;
   };
 
-   // Helper to format battery, handles null/undefined
-   const formatBattery = (batteryValue) => {
+  // Helper to format battery, handles null/undefined
+  const formatBattery = (batteryValue) => {
+    // Use bat from drone state as it's the actual battery value from Tello
     if (batteryValue === null || batteryValue === undefined) {
-        return '--'; // Placeholder
+      return '--';
     }
     return `${batteryValue}%`;
-   };
+  };
 
-   // Helper to format last update time
-   const formatLastUpdate = (timestamp) => {
-       if (!timestamp) return '--';
-       try {
-           return new Date(timestamp).toLocaleTimeString();
-       } catch (e) {
-           return 'Invalid Date';
-       }
-   }
+  // Helper to format last update time
+  const formatLastUpdate = (timestamp) => {
+    if (!timestamp) return '--';
+    try {
+      return new Date(timestamp).toLocaleTimeString();
+    } catch (e) {
+      return 'Invalid Date';
+    }
+  };
 
+  // Get the battery value from the correct field (bat)
+  const batteryValue = droneState.bat || droneState.battery;
 
   // Only render if connected? Or show default/empty values? Let's show placeholders.
   // if (!droneConnected) {
@@ -69,18 +78,17 @@ const DroneStateDisplay = () => {
             </svg>
             <div className="text-center bg-black/20 rounded-md px-2 py-1 w-full group-hover:bg-black/30 transition-all duration-200">
               <span className={`text-sm font-mono font-semibold ${
-                !droneState.battery ? 'text-gray-500' :
-                droneState.battery < 20 ? 'text-red-400/90' : 
-                droneState.battery < 50 ? 'text-yellow-400/90' : 
+                !batteryValue ? 'text-gray-500' :
+                batteryValue < 20 ? 'text-red-400/90' : 
+                batteryValue < 50 ? 'text-yellow-400/90' : 
                 'text-green-400/90'
               }`}>
-                {droneState.battery ? `${droneState.battery}%` : ''}
+                {formatBattery(batteryValue)}
               </span>
             </div>
           </div>
         </div>
       </div>
-
 
       {/* Flight Time */}
       <div className="absolute top-20 right-10 z-30">
@@ -102,7 +110,7 @@ const DroneStateDisplay = () => {
             </svg>
             <div className="text-center bg-black/20 rounded-md px-2 py-1 w-full group-hover:bg-black/30 transition-all duration-200">
               <span className="text-sm font-mono font-semibold text-purple-400/90">
-                {droneState.time ? `${droneState.time}` : ''}
+                {formatTime(droneState.time)}
               </span>
             </div>
           </div>
@@ -129,9 +137,7 @@ const DroneStateDisplay = () => {
             </svg>
             <div className="text-center bg-black/20 rounded-md px-2 py-1 w-full group-hover:bg-black/30 transition-all duration-200">
               <span className="text-sm font-mono font-semibold text-amber-400/90">
-                {droneState.lastUpdate
-                  ? new Date(droneState.lastUpdate).toLocaleTimeString()
-                  : ''}
+                {formatLastUpdate(droneState.lastUpdate)}
               </span>
             </div>
           </div>

@@ -1,78 +1,124 @@
-// See the Electron documentation for details on how to use preload scripts:
-// https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
-// src/main/preload.js
+
+
 import { contextBridge, ipcRenderer } from 'electron';
 
-// List of allowed IPC channels
-const validChannels = {
-  // Commands that expect responses (invoke)
-  invoke: [
-    'drone:connect',
-    'drone:command'
-  ],
-  // One-way messages (send)
-  send: [
-    'drone:stream-toggle',
-    'drone:capture-photo',
-    'drone:recording-toggle',
-    'drone:shutdown'
-  ],
-  // Events from main to renderer (on)
-  receive: [
-    'drone:state-update',
-    'drone:error',
-    'drone:connected',
-    'drone:disconnected',
-    'drone:stream-status',
-    'drone:recording-status',
-    'drone:photo-captured',
-    'drone:recording-stopped'
-  ]
+/**
+ * IPC Channel Definitions
+ * 
+ * Defines all valid channels for communication between main and renderer processes.
+ * Channels are categorized by their communication pattern.
+ */
+const IPC_CHANNELS = {
+    // Bi-directional communication channels (renderer -> main -> renderer)
+    INVOKE: {
+        DRONE: {
+            CONNECT: 'drone:connect',      // Initialize drone connection
+            COMMAND: 'drone:command'       // Send command to drone
+        }
+    },
+
+    // One-way communication channels (renderer -> main)
+    SEND: {
+        DRONE: {
+            STREAM_TOGGLE: 'drone:stream-toggle',       // Toggle video stream
+            CAPTURE_PHOTO: 'drone:capture-photo',       // Take a photo
+            RECORDING_TOGGLE: 'drone:recording-toggle', // Toggle video recording
+            SHUTDOWN: 'drone:shutdown'                  // Shutdown drone connection
+        }
+    },
+
+    // Event channels (main -> renderer)
+    RECEIVE: {
+        DRONE: {
+            STATE_UPDATE: 'drone:state-update',         // Drone state updates
+            ERROR: 'drone:error',                       // Error notifications
+            CONNECTED: 'drone:connected',               // Connection established
+            DISCONNECTED: 'drone:disconnected',         // Connection lost
+            STREAM_STATUS: 'drone:stream-status',       // Stream state changes
+            RECORDING_STATUS: 'drone:recording-status', // Recording state changes
+            PHOTO_CAPTURED: 'drone:photo-captured',     // Photo taken
+            RECORDING_STOPPED: 'drone:recording-stopped' // Recording completed
+        }
+    }
 };
 
-// Expose protected methods that allow the renderer process to use IPC
-contextBridge.exposeInMainWorld('electronAPI', {
-  // Two-way communication (invoke/handle)
-  invoke: async (channel, data) => {
-    if (validChannels.invoke.includes(channel)) {
-      return await ipcRenderer.invoke(channel, data);
+/**
+ * Flatten channel objects into arrays for validation
+ */
+const validChannels = {
+    invoke: Object.values(IPC_CHANNELS.INVOKE.DRONE),
+    send: Object.values(IPC_CHANNELS.SEND.DRONE),
+    receive: Object.values(IPC_CHANNELS.RECEIVE.DRONE)
+};
+
+/**
+ * API exposed to renderer process
+ * 
+ * These methods provide a secure way for the renderer process to communicate
+ * with the main process through IPC channels.
+ */
+const electronAPI = {
+    /**
+     * Invoke a command and wait for response
+     * @param {string} channel - The IPC channel to use
+     * @param {any} data - Data to send with the command
+     * @returns {Promise<any>} Response from the main process
+     */
+    invoke: async (channel, data) => {
+        if (validChannels.invoke.includes(channel)) {
+            return await ipcRenderer.invoke(channel, data);
+        }
+        console.warn(`Invalid invoke channel: ${channel}`);
+        return null;
+    },
+
+    /**
+     * Send a one-way message to main process
+     * @param {string} channel - The IPC channel to use
+     * @param {any} data - Data to send
+     */
+    send: (channel, data) => {
+        if (validChannels.send.includes(channel)) {
+            ipcRenderer.send(channel, data);
+        } else {
+            console.warn(`Invalid send channel: ${channel}`);
+        }
+    },
+
+    /**
+     * Subscribe to events from main process
+     * @param {string} channel - The IPC channel to listen on
+     * @param {Function} callback - Event handler function
+     * @returns {Function} Cleanup function to remove the listener
+     */
+    on: (channel, callback) => {
+        if (validChannels.receive.includes(channel)) {
+            // Wrap callback to prevent event object exposure to renderer
+            const subscription = (_event, ...args) => callback(...args);
+            ipcRenderer.on(channel, subscription);
+            
+            // Return cleanup function
+            return () => {
+                ipcRenderer.removeListener(channel, subscription);
+            };
+        }
+        console.warn(`Invalid receive channel: ${channel}`);
+        return () => {}; // Return no-op cleanup function
+    },
+
+    /**
+     * Remove all event listeners
+     * Useful for cleanup when unmounting components
+     */
+    removeAllListeners: () => {
+        validChannels.receive.forEach(channel => {
+            ipcRenderer.removeAllListeners(channel);
+        });
+        console.log('Removed all IPC listeners');
     }
-    console.warn(`Invalid invoke channel: ${channel}`);
-    return null;
-  },
+};
 
-  // One-way sending (send/on)
-  send: (channel, data) => {
-    if (validChannels.send.includes(channel)) {
-      ipcRenderer.send(channel, data);
-    } else {
-      console.warn(`Invalid send channel: ${channel}`);
-    }
-  },
+// Expose the API to the renderer process
+contextBridge.exposeInMainWorld('electronAPI', electronAPI);
 
-  // Event listeners (on/removeListener)
-  on: (channel, callback) => {
-    if (validChannels.receive.includes(channel)) {
-      // Wrap the callback to avoid exposing the event object to renderer
-      const subscription = (event, ...args) => callback(...args);
-      ipcRenderer.on(channel, subscription);
-      
-      // Return a cleanup function
-      return () => {
-        ipcRenderer.removeListener(channel, subscription);
-      };
-    }
-    console.warn(`Invalid receive channel: ${channel}`);
-    return () => {}; // Return no-op cleanup function for invalid channels
-  },
-
-  // Helper to remove all listeners
-  removeAllListeners: () => {
-    [...validChannels.receive].forEach(channel => {
-      ipcRenderer.removeAllListeners(channel);
-    });
-    console.log('Removed all IPC listeners');
-  }
-});
-
-console.log('Preload script loaded.');
+console.log('Preload script loaded successfully.');

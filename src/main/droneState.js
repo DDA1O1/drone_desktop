@@ -12,6 +12,18 @@ class DroneStateManager {
             bat: 0,
             baro: 0.0,
             time: 0,
+            pitch: 0,
+            roll: 0,
+            yaw: 0,
+            vgx: 0,
+            vgy: 0,
+            vgz: 0,
+            templ: 0,
+            temph: 0,
+            tof: 0,
+            agx: 0,
+            agy: 0,
+            agz: 0,
             lastUpdate: null,
         };
         this.lastStateUpdateTime = 0;
@@ -26,33 +38,54 @@ class DroneStateManager {
             return;
         }
 
-        const parts = stateString.trim().split(';');
-        const newState = { ...this.state };
-        let updated = false;
+        try {
+            const parts = stateString.trim().split(';');
+            const newState = { ...this.state };
+            let updated = false;
 
-        parts.forEach(part => {
-            const kv = part.split(':');
-            if (kv.length === 2 && kv[0] !== '') {
-                const key = kv[0];
-                const value = kv[1];
-                if (key in newState) {
-                    if (!isNaN(value)) {
-                        newState[key] = Number(value);
-                    } else {
-                        newState[key] = value;
+            parts.forEach(part => {
+                const kv = part.split(':');
+                if (kv.length === 2 && kv[0] !== '') {
+                    const key = kv[0].trim();
+                    const value = kv[1].trim();
+                    
+                    switch(key) {
+                        case 'bat':
+                            newState.bat = parseInt(value, 10);
+                            updated = true;
+                            break;
+                        case 'time':
+                            newState.time = parseInt(value, 10);
+                            updated = true;
+                            break;
+                        case 'h':
+                            newState.h = parseInt(value, 10);
+                            updated = true;
+                            break;
+                        case 'baro':
+                            newState.baro = parseFloat(value);
+                            updated = true;
+                            break;
+                        default:
+                            if (key in newState) {
+                                newState[key] = !isNaN(value) ? parseFloat(value) : value;
+                                updated = true;
+                            }
                     }
-                    updated = true;
+                }
+            });
+
+            if (updated) {
+                newState.lastUpdate = now;
+                this.state = newState;
+                this.lastStateUpdateTime = now;
+                if (this.onStateUpdate) {
+                    this.onStateUpdate(this.state);
                 }
             }
-        });
-
-        if (updated) {
-            newState.lastUpdate = now;
-            this.state = newState;
-            this.lastStateUpdateTime = now;
-            if (this.onStateUpdate) {
-                this.onStateUpdate(this.state);
-            }
+        } catch (error) {
+            console.error('Error parsing drone state:', error);
+            console.error('Raw state string:', stateString);
         }
     }
 
