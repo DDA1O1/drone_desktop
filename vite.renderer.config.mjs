@@ -6,14 +6,11 @@ import path from 'node:path'; // <-- Import Node.js path module
 
 // https://vitejs.dev/config
 export default defineConfig({
-    // If your index.html is in the project root
-    root: process.cwd(),
-    // Ensure base path is correct for Electron build/dev
+    root: path.resolve(__dirname, 'src/renderer'),
     base: './',
     plugins: [
         react(), // <-- Make sure the React plugin is included
         tailwindcss(), // <-- Ensure you have this plugin if using Tailwind CSS
-        
     ],
     // Add the resolve configuration block
     resolve: {
@@ -24,7 +21,14 @@ export default defineConfig({
     },
     // Recommended build output structure for Electron Forge Vite plugin
     build: {
-        outDir: '.vite/renderer/main_window',
+        outDir: path.resolve(__dirname, '.vite/build'),
         emptyOutDir: true,
+        assetsDir: 'assets',
+        rollupOptions: {
+            input: path.resolve(__dirname, 'src/renderer/index.html'),
+        }
     },
+    server: {
+        port: 5173,
+    }
 });

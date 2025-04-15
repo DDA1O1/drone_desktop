@@ -30,11 +30,20 @@ class WindowManager {
             this.mainWindow.focus();
         });
 
-        // Load the app
-        if (process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-            this.mainWindow.loadURL(process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL);
+        // Development vs Production loading
+        const isDev = process.env.NODE_ENV === 'development';
+        const devServerUrl = 'http://localhost:5173';
+
+        if (isDev) {
+            this.mainWindow.loadURL(devServerUrl);
         } else {
-            this.mainWindow.loadFile(path.join(__dirname, `../renderer/${process.env.MAIN_WINDOW_VITE_NAME}/index.html`));
+            const prodPath = path.join(__dirname, '../../.vite/build/index.html');
+            this.mainWindow.loadFile(prodPath);
+        }
+
+        // Open DevTools in development
+        if (isDev) {
+            this.mainWindow.webContents.openDevTools();
         }
 
         return this.mainWindow;
@@ -53,9 +62,14 @@ class WindowManager {
     }
 
     cleanup() {
-        if (this.mainWindow) {
-            this.mainWindow.close();
-            this.mainWindow = null;
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+            try {
+                this.mainWindow.close();
+            } catch (error) {
+                console.warn('Error during window cleanup:', error);
+            } finally {
+                this.mainWindow = null;
+            }
         }
     }
 }
