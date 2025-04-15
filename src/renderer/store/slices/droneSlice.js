@@ -22,18 +22,6 @@ const initialState = {
     h: null,            // Height (cm)
     tof: null,          // Time of Flight distance (cm)
 
-    // Optional: Other metrics if you plan to display them
-    pitch: null,
-    roll: null,
-    yaw: null,
-    vgx: null,          // Speed X
-    vgy: null,          // Speed Y
-    vgz: null,          // Speed Z
-    // temp_low: null,     // Example: map from 'templ' if needed
-    // temp_high: null,    // Example: map from 'temph' if needed
-    // barometer: null,    // Example: map from 'baro' if needed
-    // acceleration_x: null, // Example: map from 'agx' if needed
-    // acceleration_y: null, // Example: map from 'agy' if needed
     // acceleration_z: null, // Example: map from 'agz' if needed
 
     lastUpdate: null    // Timestamp of the last state packet received

@@ -6,7 +6,6 @@ import dgram from 'dgram'; // Node's UDP module
 import { WebSocketServer } from 'ws'; // WebSocket server
 import { spawn } from 'child_process'; // For FFmpeg
 import fs from 'fs';
-import os from 'os';
 
 // --- Configuration ---
 const TELLO_IP = '192.168.10.1';
@@ -14,7 +13,6 @@ const TELLO_PORT = 8889;
 const TELLO_STATE_PORT = 8890;  // Port for receiving state updates (if needed)
 const TELLO_VIDEO_PORT = 11111;
 const LOCAL_WEBSOCKET_STREAM_PORT = 3001; // Port for JSMpeg to connect to locally
-const STATE_UPDATE_INTERVAL = 10000; // ms
 const MEDIA_FOLDER = path.join(app.getPath('videos'), 'TelloMedia'); // Save media in user's Videos folder
 const PHOTOS_DIR = path.join(MEDIA_FOLDER, 'photos');
 const MP4_DIR = path.join(MEDIA_FOLDER, 'recordings');
