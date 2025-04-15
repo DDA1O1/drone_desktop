@@ -83,32 +83,38 @@ const DroneControl = () => {
   // ==== KEYBOARD CONTROLS ====
   useEffect(() => {
     const handleKeyDown = (e) => {
-      const key = e.key.toLowerCase();
-      if (key in movementCommands || ['t', 'l', 'escape'].includes(key)) {
+      const key = e.key;
+      // Convert to lowercase only for non-arrow keys
+      const lowerKey = key.startsWith('Arrow') ? key : key.toLowerCase();
+      
+      if (movementCommands[key] || ['t', 'l', 'escape'].includes(lowerKey)) {
         e.preventDefault();
-        setActiveKeys(prev => new Set([...prev, key]));
+        setActiveKeys(prev => new Set([...prev, lowerKey]));
         
         if (droneConnected) {
-          switch (key) {
+          switch (lowerKey) {
             case 't': handleTakeoff(); break;
             case 'l': handleLand(); break;
             case 'escape': handleGracefulShutdown(); break;
             default:
-              if (movementCommands[e.key]) movementCommands[e.key]();
+              if (movementCommands[key]) movementCommands[key]();
           }
-        } else if (key === 'escape') {
+        } else if (lowerKey === 'escape') {
           handleGracefulShutdown();
         }
       }
     };
 
     const handleKeyUp = (e) => {
-      const key = e.key.toLowerCase();
-      if (key in movementCommands || ['t', 'l', 'escape'].includes(key)) {
+      const key = e.key;
+      // Convert to lowercase only for non-arrow keys
+      const lowerKey = key.startsWith('Arrow') ? key : key.toLowerCase();
+      
+      if (movementCommands[key] || ['t', 'l', 'escape'].includes(lowerKey)) {
         e.preventDefault();
         setActiveKeys(prev => {
           const updated = new Set(prev);
-          updated.delete(key);
+          updated.delete(lowerKey);
           return updated;
         });
       }
@@ -475,26 +481,26 @@ const DroneControl = () => {
           <div className="grid grid-cols-3 gap-2 w-40 mx-auto">
             <div></div>
             <div 
-              className={getButtonClass('ArrowUp', activeKeys.has('arrowup') || activeButtons.has('ArrowUp'))}
+              className={getButtonClass('ArrowUp', activeKeys.has('ArrowUp') || activeButtons.has('ArrowUp'))}
               onMouseDown={() => handleButtonPress('ArrowUp')}
               onMouseUp={() => handleButtonRelease('ArrowUp')}
               onMouseLeave={() => handleButtonRelease('ArrowUp')}
             >↑</div>
             <div></div>
             <div 
-              className={getButtonClass('ArrowLeft', activeKeys.has('arrowleft') || activeButtons.has('ArrowLeft'))}
+              className={getButtonClass('ArrowLeft', activeKeys.has('ArrowLeft') || activeButtons.has('ArrowLeft'))}
               onMouseDown={() => handleButtonPress('ArrowLeft')}
               onMouseUp={() => handleButtonRelease('ArrowLeft')}
               onMouseLeave={() => handleButtonRelease('ArrowLeft')}
             >←</div>
             <div 
-              className={getButtonClass('ArrowDown', activeKeys.has('arrowdown') || activeButtons.has('ArrowDown'))}
+              className={getButtonClass('ArrowDown', activeKeys.has('ArrowDown') || activeButtons.has('ArrowDown'))}
               onMouseDown={() => handleButtonPress('ArrowDown')}
               onMouseUp={() => handleButtonRelease('ArrowDown')}
               onMouseLeave={() => handleButtonRelease('ArrowDown')}
             >↓</div>
             <div 
-              className={getButtonClass('ArrowRight', activeKeys.has('arrowright') || activeButtons.has('ArrowRight'))}
+              className={getButtonClass('ArrowRight', activeKeys.has('ArrowRight') || activeButtons.has('ArrowRight'))}
               onMouseDown={() => handleButtonPress('ArrowRight')}
               onMouseUp={() => handleButtonRelease('ArrowRight')}
               onMouseLeave={() => handleButtonRelease('ArrowRight')}
