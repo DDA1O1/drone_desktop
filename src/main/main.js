@@ -160,13 +160,28 @@ if (started) {
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1200, // Increased width
+    height: 800, // Increased height
+    minWidth: 800, // Prevent window from becoming too small
+    minHeight: 600,
+    frame: true,
+    show: false, // Don't show until ready
+    backgroundColor: '#2e2c29', // Dark background color
+    titleBarStyle: 'default', // Default title bar style
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, // Keep true for security
       nodeIntegration: false, // Keep false for security
     },
+    // centre the window on the screen
+    center: true,
+  });
+
+  // Gracefully show window when ready to prevent flickering
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    // Optional: Focus the window
+    mainWindow.focus();
   });
 
   // and load the index.html of the app.
@@ -598,28 +613,6 @@ async function performGracefulShutdown() {
   // let the natural app lifecycle handle it unless explicitly needed.
 }
 
-// --- App Lifecycle ---
-app.whenReady().then(() => {
-  if (!createMediaFolders()) {
-       // Handle the case where media folders couldn't be created (e.g., show error dialog)
-        console.error("Exiting due to media folder creation failure.");
-        // You might want to show an Electron dialog here
-        // dialog.showErrorBox('Initialization Error', `Failed to create media folders in ${MEDIA_FOLDER}. Please check permissions and restart.`);
-        app.quit();
-        return;
-    }
-  initializeUDP();
-  setupIPCHandlers(); // Setup listeners before window opens
-  createWindow();
-
-  app.on('activate', () => {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
-});
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
