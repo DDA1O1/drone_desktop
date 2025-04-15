@@ -28,37 +28,23 @@ const DroneControl = () => {
     // retryAttempts // No longer needed from Redux state here
   } = useSelector(state => state.drone);
 
-  // State for keyboard controls UI feedback
+  // State for keyboard and button controls UI feedback
   const [activeKeys, setActiveKeys] = useState(new Set());
+  const [activeButtons, setActiveButtons] = useState(new Set());
 
-  // Remove MAX_SDK_RETRY_ATTEMPTS and related logic
-
-  // ==== LIFE CYCLE MANAGEMENT ====
-  const connectToDrone = async () => {
-    // Check if already connected (optional UI feedback)
-    if (droneConnected) {
-      console.log('Already connected.');
-      return;
-    }
-    console.log('Requesting drone connection via IPC...');
-    try {
-      // Use invoke instead of send to get connection result
-      await window.electronAPI.invoke('drone:connect');
-    } catch (error) {
-      dispatch(setError(`Connection failed: ${error.message}`));
-    }
+  // Movement constants
+  const MOVEMENT_CONSTANTS = {
+    DISTANCE: 20,  // cm for forward/back/left/right/up/down
+    ROTATION: 45,  // degrees for rotation
   };
 
-  // Basic command sender (NOW uses IPC)
+  // ==== COMMAND HANDLERS ====
   const sendCommand = async (command) => {
-    // Check connection status from Redux state
     if (!droneConnected) {
-      // Dispatch error directly or rely on main process feedback
       dispatch(setError('Drone not connected. Cannot send command.'));
       console.warn('Attempted to send command while disconnected:', command);
       return;
     }
-    console.log(`Sending command via IPC: drone:command, payload: ${command}`);
     try {
       await window.electronAPI.invoke('drone:command', command);
     } catch (error) {
@@ -66,90 +52,65 @@ const DroneControl = () => {
     }
   };
 
-  // ==== VIDEO CONTROLS (NOW uses IPC) ====
-  const toggleVideoStream = () => {
-    if (!droneConnected) {
-        dispatch(setError('Drone not connected. Cannot toggle video.'));
-        return;
-    }
-    console.log('Sending command via IPC: drone:stream-toggle');
-    // Send a single message, main process determines 'streamon'/'streamoff'
-    window.electronAPI.send('drone:stream-toggle');
-    // The Redux state (streamEnabled) will be updated by the 'drone:stream-status' IPC message listener
+  // ==== MOVEMENT COMMANDS ====
+  const movementCommands = {
+    w: () => sendCommand(`forward ${MOVEMENT_CONSTANTS.DISTANCE}`),
+    s: () => sendCommand(`back ${MOVEMENT_CONSTANTS.DISTANCE}`),
+    a: () => sendCommand(`left ${MOVEMENT_CONSTANTS.DISTANCE}`),
+    d: () => sendCommand(`right ${MOVEMENT_CONSTANTS.DISTANCE}`),
+    ArrowUp: () => sendCommand(`up ${MOVEMENT_CONSTANTS.DISTANCE}`),
+    ArrowDown: () => sendCommand(`down ${MOVEMENT_CONSTANTS.DISTANCE}`),
+    ArrowLeft: () => sendCommand(`ccw ${MOVEMENT_CONSTANTS.ROTATION}`),
+    ArrowRight: () => sendCommand(`cw ${MOVEMENT_CONSTANTS.ROTATION}`),
   };
 
-  // ==== PHOTO CAPTURE (NOW uses IPC) ====
-   const capturePhoto = () => {
-    if (!streamEnabled) { // Check stream status from Redux
-      dispatch(setError('Video stream must be active to capture photo.'));
-      return;
+  // ==== BUTTON HANDLERS ====
+  const handleButtonPress = (key) => {
+    setActiveButtons(prev => new Set([...prev, key]));
+    if (droneConnected && movementCommands[key]) {
+      movementCommands[key]();
     }
-     console.log('Sending command via IPC: drone:capture-photo');
-     window.electronAPI.send('drone:capture-photo');
-     // Confirmation/error handled by 'drone:photo-captured' or 'drone:error' listeners
-   };
-
-   // ==== RECORDING (NOW uses IPC) ====
-  const toggleRecording = () => {
-    if (!streamEnabled) { // Check stream status from Redux
-       dispatch(setError('Video stream must be active to record.'));
-       return;
-    }
-    console.log('Sending command via IPC: drone:recording-toggle');
-    // Send a single message, main process determines start/stop
-    window.electronAPI.send('drone:recording-toggle');
-    // Status/file name handled by 'drone:recording-status' / 'drone:recording-stopped' listeners
   };
 
+  const handleButtonRelease = (key) => {
+    setActiveButtons(prev => {
+      const updated = new Set(prev);
+      updated.delete(key);
+      return updated;
+    });
+  };
 
   // ==== KEYBOARD CONTROLS ====
   useEffect(() => {
     const handleKeyDown = (e) => {
-      const validKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', /* 'q', 'e', */ 'Escape', 't', 'l']; // Added T and L
-      if (validKeys.includes(e.key.toLowerCase()) && droneConnected) { // Check droneConnected here
+      const key = e.key.toLowerCase();
+      if (key in movementCommands || ['t', 'l', 'escape'].includes(key)) {
         e.preventDefault();
-        setActiveKeys(prev => {
-          const updated = new Set(prev);
-          updated.add(e.key.toLowerCase()); // Use lowercase for consistency
-          return updated;
-        });
-
-        // Map keys to drone commands
-        switch (e.key.toLowerCase()) { // Use lowercase
-          case 'w': sendCommand(`forward ${20}`); break;
-          case 's': sendCommand(`back ${20}`); break;
-          case 'a': sendCommand(`left ${20}`); break;
-          case 'd': sendCommand(`right ${20}`); break;
-          case 'arrowup': sendCommand(`up ${20}`); break;
-          case 'arrowdown': sendCommand(`down ${20}`); break;
-          case 'arrowleft': sendCommand(`ccw ${45}`); break;
-          case 'arrowright': sendCommand(`cw ${45}`); break;
-          case 't': handleTakeoff(); break; // Added takeoff
-          case 'l': handleLand(); break; // Added land
-          case 'escape': handleGracefulShutdown(); break; // Changed from emergency
-        }
-      } else if (e.key === 'Escape') { // Allow Escape even if not connected for shutdown
-          e.preventDefault();
+        setActiveKeys(prev => new Set([...prev, key]));
+        
+        if (droneConnected) {
+          switch (key) {
+            case 't': handleTakeoff(); break;
+            case 'l': handleLand(); break;
+            case 'escape': handleGracefulShutdown(); break;
+            default:
+              if (movementCommands[e.key]) movementCommands[e.key]();
+          }
+        } else if (key === 'escape') {
           handleGracefulShutdown();
+        }
       }
     };
 
     const handleKeyUp = (e) => {
-      const validKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', /* 'q', 'e', */ 'Escape', 't', 'l'];
-      const lowerKey = e.key.toLowerCase();
-      if (validKeys.includes(lowerKey)) {
+      const key = e.key.toLowerCase();
+      if (key in movementCommands || ['t', 'l', 'escape'].includes(key)) {
         e.preventDefault();
         setActiveKeys(prev => {
           const updated = new Set(prev);
-          updated.delete(lowerKey);
+          updated.delete(key);
           return updated;
         });
-         // Send stop command on key up for continuous movement (optional but common)
-         // This requires the main process to handle 'stop' or rely on Tello's auto-stop
-         // For simplicity, we can omit sending 'stop' here, Tello usually stops after a short delay.
-         // If you need immediate stop on keyup, you'd send `sendCommand('stop')` or `sendCommand('rc 0 0 0 0')`
-         // depending on how you implement movement control (SDK commands vs RC command).
-         // Let's stick to the simple SDK commands for now.
       }
     };
 
@@ -160,25 +121,56 @@ const DroneControl = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-    // Re-run if droneConnected changes (to enable/disable listeners implicitly via the check inside handleKeyDown)
-    // Also include sendCommand if its definition could change (unlikely here, but good practice)
-  }, [droneConnected /*, sendCommand */]); // Added droneConnected dependency
+  }, [droneConnected]);
 
-  // Basic flight controls (use sendCommand)
-  const handleTakeoff = () => sendCommand('takeoff');
-  const handleLand = () => sendCommand('land');
-  // Emergency is usually direct, not via generic sendCommand if main process has specific handling
-  // const handleEmergency = () => sendCommand('emergency');
-   // For emergency, maybe use a dedicated IPC channel if needed, or just rely on ESC->shutdown
-  const handleEmergency = () => {
-      console.warn('Emergency stop triggered!');
-      // Option 1: Send specific emergency command if main process handles it separately
-      // window.electronAPI.send('drone:emergency');
-      // Option 2: Rely on graceful shutdown via Escape key for now
-      handleGracefulShutdown();
+  // ==== CONNECTION MANAGEMENT ====
+  const connectToDrone = async () => {
+    if (droneConnected) {
+      console.log('Already connected.');
+      return;
+    }
+    try {
+      await window.electronAPI.invoke('drone:connect');
+    } catch (error) {
+      dispatch(setError(`Connection failed: ${error.message}`));
+    }
   };
 
-  // Clear error after 5 seconds (Keep this UI feature)
+  // ==== FLIGHT CONTROLS ====
+  const handleTakeoff = () => sendCommand('takeoff');
+  const handleLand = () => sendCommand('land');
+  
+  const handleGracefulShutdown = () => {
+    console.log('Requesting graceful shutdown...');
+    window.electronAPI.send('drone:shutdown');
+  };
+
+  // ==== MEDIA CONTROLS ====
+  const toggleVideoStream = () => {
+    if (!droneConnected) {
+      dispatch(setError('Drone not connected. Cannot toggle video.'));
+      return;
+    }
+    window.electronAPI.send('drone:stream-toggle');
+  };
+
+  const capturePhoto = () => {
+    if (!streamEnabled) {
+      dispatch(setError('Video stream must be active to capture photo.'));
+      return;
+    }
+    window.electronAPI.send('drone:capture-photo');
+  };
+
+  const toggleRecording = () => {
+    if (!streamEnabled) {
+      dispatch(setError('Video stream must be active to record.'));
+      return;
+    }
+    window.electronAPI.send('drone:recording-toggle');
+  };
+
+  // Clear error after 5 seconds
   useEffect(() => {
     let timer;
     if (error) {
@@ -189,13 +181,13 @@ const DroneControl = () => {
     return () => clearTimeout(timer);
   }, [error, dispatch]);
 
-  // Graceful shutdown handler (NOW uses IPC)
-  const handleGracefulShutdown = () => {
-    console.log('Requesting graceful shutdown via IPC...');
-    window.electronAPI.send('drone:shutdown');
-    // The main process will handle landing, disconnecting, etc.
-    // UI state (droneConnected = false) will update via IPC listener.
-  };
+  // Helper function to get button class based on active state
+  const getButtonClass = (key, isActive) => `
+    border-2 ${isActive ? 'bg-blue-500 border-blue-300' : 'border-gray-600'} 
+    rounded-md p-3 text-center font-bold
+    hover:bg-blue-500/50 hover:border-blue-300/50
+    cursor-pointer transition-all duration-200
+  `;
 
   return (
     <>
@@ -410,7 +402,7 @@ const DroneControl = () => {
 
         {/* Emergency button */}
         <button
-          onClick={handleEmergency}
+          onClick={handleGracefulShutdown}
           disabled={!droneConnected}
           className={`group relative p-2.5 rounded-lg ${
             droneConnected 
@@ -439,32 +431,37 @@ const DroneControl = () => {
         </button>
       </div>
 
-      {/* Add ESC key indicator with conditional rendering */}
-      {droneConnected && (
-        <div className="absolute top-28 left-8 z-30">
-          <div className="flex items-center gap-2 bg-transparent px-3 py-2 rounded-lg
-                        transition-all duration-300 ease-in-out opacity-40 hover:opacity-80">
-            <kbd className={`px-2 py-1 text-xs font-semibold text-gray-800 bg-white/80 rounded-md shadow-sm 
-                          ${activeKeys.has('Escape') ? 'bg-red-100/80' : ''}`}>ESC</kbd>
-            <span className="text-white/60 text-sm">to quit</span>
-          </div>
-        </div>
-      )}
-
-      {/* Left corner - WASD Movement Controls */}
+      {/* WASD Movement Controls */}
       <div className="absolute bottom-8 left-8 z-30">
         <div className="bg-transparent bg-opacity-70 p-6 rounded-lg text-white">
-          
-          {/* WASD keys */}
           <div className="grid grid-cols-3 gap-2 w-40 mx-auto">
             <div></div>
-            <div className={`border-2 ${activeKeys.has('w') ? 'bg-blue-500 border-blue-300' : 'border-gray-600'} rounded-md p-3 text-center font-bold`}>W</div>
+            <div 
+              className={getButtonClass('w', activeKeys.has('w') || activeButtons.has('w'))}
+              onMouseDown={() => handleButtonPress('w')}
+              onMouseUp={() => handleButtonRelease('w')}
+              onMouseLeave={() => handleButtonRelease('w')}
+            >W</div>
             <div></div>
-            <div className={`border-2 ${activeKeys.has('a') ? 'bg-blue-500 border-blue-300' : 'border-gray-600'} rounded-md p-3 text-center font-bold`}>A</div>
-            <div className={`border-2 ${activeKeys.has('s') ? 'bg-blue-500 border-blue-300' : 'border-gray-600'} rounded-md p-3 text-center font-bold`}>S</div>
-            <div className={`border-2 ${activeKeys.has('d') ? 'bg-blue-500 border-blue-300' : 'border-gray-600'} rounded-md p-3 text-center font-bold`}>D</div>
+            <div 
+              className={getButtonClass('a', activeKeys.has('a') || activeButtons.has('a'))}
+              onMouseDown={() => handleButtonPress('a')}
+              onMouseUp={() => handleButtonRelease('a')}
+              onMouseLeave={() => handleButtonRelease('a')}
+            >A</div>
+            <div 
+              className={getButtonClass('s', activeKeys.has('s') || activeButtons.has('s'))}
+              onMouseDown={() => handleButtonPress('s')}
+              onMouseUp={() => handleButtonRelease('s')}
+              onMouseLeave={() => handleButtonRelease('s')}
+            >S</div>
+            <div 
+              className={getButtonClass('d', activeKeys.has('d') || activeButtons.has('d'))}
+              onMouseDown={() => handleButtonPress('d')}
+              onMouseUp={() => handleButtonRelease('d')}
+              onMouseLeave={() => handleButtonRelease('d')}
+            >D</div>
           </div>
-          
           <div className="mt-4 text-center text-sm text-gray-400">
             <p>Forward / Backward</p>
             <p>Left / Right</p>
@@ -472,20 +469,37 @@ const DroneControl = () => {
         </div>
       </div>
       
-      {/* Right corner - Arrow keys for Altitude & Rotation */}
+      {/* Arrow Keys Controls */}
       <div className="absolute bottom-8 right-8 z-30">
         <div className="bg-transparent bg-opacity-70 p-6 rounded-lg text-white">
-          
-          {/* Arrow keys */}
           <div className="grid grid-cols-3 gap-2 w-40 mx-auto">
             <div></div>
-            <div className={`border-2 ${activeKeys.has('ArrowUp') ? 'bg-blue-500 border-blue-300' : 'border-gray-600'} rounded-md p-3 text-center font-bold`}>↑</div>
+            <div 
+              className={getButtonClass('ArrowUp', activeKeys.has('arrowup') || activeButtons.has('ArrowUp'))}
+              onMouseDown={() => handleButtonPress('ArrowUp')}
+              onMouseUp={() => handleButtonRelease('ArrowUp')}
+              onMouseLeave={() => handleButtonRelease('ArrowUp')}
+            >↑</div>
             <div></div>
-            <div className={`border-2 ${activeKeys.has('ArrowLeft') ? 'bg-blue-500 border-blue-300' : 'border-gray-600'} rounded-md p-3 text-center font-bold`}>←</div>
-            <div className={`border-2 ${activeKeys.has('ArrowDown') ? 'bg-blue-500 border-blue-300' : 'border-gray-600'} rounded-md p-3 text-center font-bold`}>↓</div>
-            <div className={`border-2 ${activeKeys.has('ArrowRight') ? 'bg-blue-500 border-blue-300' : 'border-gray-600'} rounded-md p-3 text-center font-bold`}>→</div>
+            <div 
+              className={getButtonClass('ArrowLeft', activeKeys.has('arrowleft') || activeButtons.has('ArrowLeft'))}
+              onMouseDown={() => handleButtonPress('ArrowLeft')}
+              onMouseUp={() => handleButtonRelease('ArrowLeft')}
+              onMouseLeave={() => handleButtonRelease('ArrowLeft')}
+            >←</div>
+            <div 
+              className={getButtonClass('ArrowDown', activeKeys.has('arrowdown') || activeButtons.has('ArrowDown'))}
+              onMouseDown={() => handleButtonPress('ArrowDown')}
+              onMouseUp={() => handleButtonRelease('ArrowDown')}
+              onMouseLeave={() => handleButtonRelease('ArrowDown')}
+            >↓</div>
+            <div 
+              className={getButtonClass('ArrowRight', activeKeys.has('arrowright') || activeButtons.has('ArrowRight'))}
+              onMouseDown={() => handleButtonPress('ArrowRight')}
+              onMouseUp={() => handleButtonRelease('ArrowRight')}
+              onMouseLeave={() => handleButtonRelease('ArrowRight')}
+            >→</div>
           </div>
-          
           <div className="mt-4 text-center text-sm text-gray-400">
             <p>Up / Down</p>
             <p>Rotate Left / Right</p>
