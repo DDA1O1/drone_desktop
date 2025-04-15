@@ -18,7 +18,7 @@ const PHOTOS_DIR = path.join(MEDIA_FOLDER, 'photos');
 const MP4_DIR = path.join(MEDIA_FOLDER, 'recordings');
 
 // --- Global State (Simplified - you might create a state class/object later) ---
-let mainWindow = null;
+let mainWindow = null; // Moved to top level scope
 let droneClient = null; // UDP client
 let droneStateClient = null; // UDP client for receiving state updates (if needed)
 let wss = null; // WebSocket Server
@@ -38,10 +38,19 @@ let droneState = {
 };
 
 let currentRecordingPath = null;
+let lastStateUpdateTime = 0;
+const STATE_UPDATE_INTERVAL = 100; // Update UI at most every 100ms
 
 // Function to parse the state string from the drone
 function parseStateString(stateString) {
   if (!stateString || typeof stateString !== 'string') return;
+
+  const now = Date.now();
+  // Rate limit updates
+  if (now - lastStateUpdateTime < STATE_UPDATE_INTERVAL) {
+    return;  // Skip this update
+  }
+
   // Example state: pitch:0;roll:0;yaw:0;vgx:0;vgy:0;vgz:0;templ:85;temph:87;tof:10;h:0;bat:85;baro:166.07;time:0;agx:6.00;agy:-6.00;agz:-999.00;\r\n
   const parts = stateString.trim().split(';');
   const newState = { ...droneState }; // Copy current state
@@ -65,8 +74,11 @@ function parseStateString(stateString) {
   });
 
   if (updated) {
-      newState.lastUpdate = Date.now();
+      newState.lastUpdate = now;
       Object.assign(droneState, newState); // Update the global state object
+      lastStateUpdateTime = now;
+      // Send update to renderer
+      sendToRenderer('drone:state-update', droneState);
   }
 }
 
@@ -84,40 +96,92 @@ function sendDroneCommand(command) {
     if (!droneClient) {
       return reject(new Error('Drone UDP client not initialized'));
     }
-    console.log(`Sending command: ${command}`);
-    // Simple handler for 'ok' or error responses
-    const messageHandler = (msg) => {
-      const response = msg.toString().trim();
-      console.log(`Drone response to '${command}': ${response}`);
-      droneClient.removeListener('message', messageHandler); // Clean up listener
-      clearTimeout(timeout);
-      if (response === 'ok' || (command === 'command' && response === 'ok')) { // SDK connect is just 'ok'
-        resolve(response);
-      } else if (response.toLowerCase().includes('error')) {
-        reject(new Error(`Drone error: ${response}`));
-      } else {
-        resolve(response); // Resolve with non-'ok'/'error' response (like battery %)
-      }
+
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000; // 1 second between retries
+
+    const attemptCommand = () => {
+      console.log(`Sending command: ${command} (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      
+      // Improved message handler with better validation
+      const messageHandler = (msg) => {
+        try {
+          // Convert buffer to string and clean it up
+          const response = msg.toString('utf8').trim().replace(/\0/g, '');
+          
+          // Log raw response for debugging
+          console.log(`Raw drone response to '${command}': ${JSON.stringify(response)}`);
+
+          // Only process if we got actual content
+          if (!response) {
+            throw new Error('Empty response');
+          }
+
+          // Clean up and remove handler
+          droneClient.removeListener('message', messageHandler);
+          clearTimeout(timeout);
+
+          // Validate response
+          if (response === 'ok' || (command === 'command' && response === 'ok')) {
+            resolve(response);
+          } else if (response.toLowerCase().includes('error')) {
+            throw new Error(`Drone error: ${response}`);
+          } else if (/^[-0-9]+$/.test(response)) { // Valid numeric response (e.g., battery level)
+            resolve(response);
+          } else if (retryCount < MAX_RETRIES - 1) {
+            // Invalid response but we can retry
+            console.warn(`Invalid response: ${JSON.stringify(response)}, retrying...`);
+            setTimeout(attemptCommand, RETRY_DELAY);
+            retryCount++;
+          } else {
+            throw new Error(`Invalid response after ${MAX_RETRIES} attempts: ${JSON.stringify(response)}`);
+          }
+        } catch (error) {
+          if (retryCount < MAX_RETRIES - 1) {
+            console.warn(`Error processing response: ${error.message}, retrying...`);
+            setTimeout(attemptCommand, RETRY_DELAY);
+            retryCount++;
+          } else {
+            reject(error);
+          }
+        }
+      };
+
+      const errorHandler = (err) => {
+        console.error(`UDP send error for command '${command}':`, err);
+        droneClient.removeListener('message', messageHandler);
+        clearTimeout(timeout);
+        if (retryCount < MAX_RETRIES - 1) {
+          console.warn('UDP error, retrying...');
+          setTimeout(attemptCommand, RETRY_DELAY);
+          retryCount++;
+        } else {
+          reject(err);
+        }
+      };
+
+      const timeout = setTimeout(() => {
+        droneClient.removeListener('message', messageHandler);
+        if (retryCount < MAX_RETRIES - 1) {
+          console.warn('Command timeout, retrying...');
+          setTimeout(attemptCommand, RETRY_DELAY);
+          retryCount++;
+        } else {
+          reject(new Error(`Timeout waiting for response to command: ${command}`));
+        }
+      }, 5000); // 5 second timeout
+
+      droneClient.once('message', messageHandler);
+      droneClient.send(command, 0, command.length, TELLO_PORT, TELLO_IP, (err) => {
+        if (err) {
+          errorHandler(err);
+        }
+      });
     };
 
-    const errorHandler = (err) => {
-      console.error(`UDP send error for command '${command}':`, err);
-      droneClient.removeListener('message', messageHandler);
-      clearTimeout(timeout);
-      reject(err);
-    };
-
-    const timeout = setTimeout(() => {
-      droneClient.removeListener('message', messageHandler);
-      reject(new Error(`Timeout waiting for response to command: ${command}`));
-    }, 5000); // 5 second timeout
-
-    droneClient.once('message', messageHandler); // Use 'once' for command responses
-    droneClient.send(command, 0, command.length, TELLO_PORT, TELLO_IP, (err) => {
-      if (err) {
-        errorHandler(err);
-      }
-    });
+    // Start the first attempt
+    attemptCommand();
   });
 }
 
@@ -157,7 +221,7 @@ if (started) {
 
 const createWindow = () => {
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200, // Increased width
     height: 800, // Increased height
     minWidth: 800, // Prevent window from becoming too small
@@ -199,6 +263,7 @@ function initializeUDP() {
     return;
   }
 
+  // Initialize command socket
   droneClient = dgram.createSocket('udp4');
   droneClient.bind(); // Bind to a random available port for receiving responses
 
@@ -207,42 +272,61 @@ function initializeUDP() {
 
     try {
       const address = droneClient.address();
-      console.log(`UDP client listening ${address.address}:${address.port}`);
+      console.log(`UDP command client listening ${address.address}:${address.port}`);
     } catch (err) {
-      // Catch potential EBADF or other errors if the socket state is bad
-      console.error(`Error getting address in command client 'listening' handler: ${e.message}`);
-      // Attempt cleanup if an error occurs here
+      console.error(`Error getting address in command client 'listening' handler: ${err.message}`);
       if (droneClient) {
         droneClient.close();
         droneClient = null;
       }
-      // Optionally notify renderer
-             sendToRenderer('drone:error', `UDP Command Socket Error on Listening: ${e.message}`);
+      sendToRenderer('drone:error', `UDP Command Socket Error on Listening: ${err.message}`);
     }
-    
-    
   });
 
   droneClient.on('error', (err) => {
     console.error(`UDP Command client error:\n${err.stack}`);
     sendToRenderer('drone:error', `UDP Command Error: ${err.message}`);
-    // Ensure close is only called if client exists
-    const clientToClose = droneClient; // Capture ref before nulling
-    droneClient = null; // Nullify the reference *before* closing async might be safer
+    const clientToClose = droneClient;
+    droneClient = null;
     if (clientToClose) {
-         clientToClose.close();
+      clientToClose.close();
     }
-    if (droneState.connected) { // Only reset if was connected
-        droneState.connected = false;
-        sendToRenderer('drone:disconnected');
+    if (droneState.connected) {
+      droneState.connected = false;
+      sendToRenderer('drone:disconnected');
     }
   });
 
-  // General message listener (mainly for state updates if not using command-response)
-  // droneClient.on('message', (msg, rinfo) => {
-  //   console.log(`UDP Message from ${rinfo.address}:${rinfo.port}: ${msg}`);
-  //   // Handle async messages if needed (e.g., Tello EDU state stream)
-  // });
+  // Initialize state socket
+  droneStateClient = dgram.createSocket('udp4');
+  droneStateClient.bind(TELLO_STATE_PORT); // Bind to the specific state port
+
+  droneStateClient.on('listening', () => {
+    console.log(`State listener active on port ${TELLO_STATE_PORT}`);
+  });
+
+  droneStateClient.on('error', (err) => {
+    console.error(`UDP State client error:\n${err.stack}`);
+    sendToRenderer('drone:error', `UDP State Error: ${err.message}`);
+    const clientToClose = droneStateClient;
+    droneStateClient = null;
+    if (clientToClose) {
+      clientToClose.close();
+    }
+  });
+
+  // Handle state updates
+  droneStateClient.on('message', (msg) => {
+    try {
+      const stateString = msg.toString().trim();
+      // Parse and update state
+      parseStateString(stateString);
+      // Send updated state to renderer
+      sendToRenderer('drone:state-update', droneState);
+    } catch (error) {
+      console.error('Error processing state update:', error);
+    }
+  });
 }
 
 function initializeWebSocketServer() {
@@ -389,38 +473,40 @@ function stopFFmpegStream() {
 // --- IPC Handlers ---
 function setupIPCHandlers() {
   // Connect to Drone SDK
-  ipcMain.on('drone:connect', async (event) => {
+  ipcMain.handle('drone:connect', async () => {
     if (droneState.connected) {
       console.log('Drone already connected.');
-      return;
+      return { success: true };
     }
     try {
       await sendDroneCommand('command');
       droneState.connected = true;
       sendToRenderer('drone:connected');
       sendToRenderer('drone:state-update', droneState); // Send initial state
+      return { success: true };
     
     } catch (error) {
       console.error('Failed to connect to drone SDK:', error);
       droneState.connected = false;
       sendToRenderer('drone:disconnected');
       sendToRenderer('drone:error', `Connection failed: ${error.message}`);
+      throw error; // This will be caught by the renderer's invoke call
     }
   });
 
   // Send Generic Command
-  ipcMain.on('drone:command', async (event, command) => {
+  ipcMain.handle('drone:command', async (event, command) => {
     if (!droneState.connected) {
-      sendToRenderer('drone:error', 'Drone not connected.');
-      return;
+      throw new Error('Drone not connected.');
     }
     try {
       const response = await sendDroneCommand(command);
       console.log(`Command '${command}' successful, response: ${response}`);
-      // Maybe send specific confirmations to renderer if needed
+      return { success: true, response };
     } catch (error) {
       console.error(`Failed to send command '${command}':`, error);
       sendToRenderer('drone:error', `Command '${command}' failed: ${error.message}`);
+      throw error;
     }
   });
 

@@ -34,22 +34,23 @@ const DroneControl = () => {
   // Remove MAX_SDK_RETRY_ATTEMPTS and related logic
 
   // ==== LIFE CYCLE MANAGEMENT ====
-  const connectToDrone = () => {
+  const connectToDrone = async () => {
     // Check if already connected (optional UI feedback)
     if (droneConnected) {
       console.log('Already connected.');
       return;
     }
     console.log('Requesting drone connection via IPC...');
-    // Simply send the request to the main process
-    window.electronAPI.send('drone:connect');
-    // No need for async/await or try/catch here.
-    // Success/failure will be handled by the IPC listeners
-    // which update the Redux state (droneConnected, error).
+    try {
+      // Use invoke instead of send to get connection result
+      await window.electronAPI.invoke('drone:connect');
+    } catch (error) {
+      dispatch(setError(`Connection failed: ${error.message}`));
+    }
   };
 
   // Basic command sender (NOW uses IPC)
-  const sendCommand = (command) => {
+  const sendCommand = async (command) => {
     // Check connection status from Redux state
     if (!droneConnected) {
       // Dispatch error directly or rely on main process feedback
@@ -58,9 +59,11 @@ const DroneControl = () => {
       return;
     }
     console.log(`Sending command via IPC: drone:command, payload: ${command}`);
-    window.electronAPI.send('drone:command', command);
-    // No try/catch or response handling needed here.
-    // Errors/confirmations are handled via IPC listeners if the main process sends them back.
+    try {
+      await window.electronAPI.invoke('drone:command', command);
+    } catch (error) {
+      dispatch(setError(`Command failed: ${error.message}`));
+    }
   };
 
   // ==== VIDEO CONTROLS (NOW uses IPC) ====
@@ -219,7 +222,7 @@ const DroneControl = () => {
                 d="M13 10V3L4 14h7v7l9-11h-7z"
               />
             </svg>
-            Connect Drone
+            Connect
           </button>
         )}
 
