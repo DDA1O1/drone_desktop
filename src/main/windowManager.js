@@ -5,6 +5,7 @@ import { WINDOW_CONFIG } from './config';
 class WindowManager {
     constructor() {
         this.mainWindow = null;
+        this.streamEnabled = false;
     }
 
     createWindow() {
@@ -41,10 +42,10 @@ class WindowManager {
             this.mainWindow.loadFile(prodPath);
         }
 
-        // Open DevTools in development
-        if (isDev) {
-            this.mainWindow.webContents.openDevTools();
-        }
+        // DevTools can still be opened manually with Ctrl+Shift+I
+        // if (isDev) {
+        //     this.mainWindow.webContents.openDevTools();
+        // }
 
         return this.mainWindow;
     }
@@ -54,11 +55,18 @@ class WindowManager {
     }
 
     sendToRenderer(channel, data) {
-        if (this.mainWindow && this.mainWindow.webContents) {
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
             this.mainWindow.webContents.send(channel, data);
+            if (channel === 'drone:stream-status') {
+                this.streamEnabled = data;
+            }
         } else {
             console.warn(`Tried to send IPC message to non-existent window: ${channel}`);
         }
+    }
+
+    getStreamState() {
+        return this.streamEnabled;
     }
 
     cleanup() {
