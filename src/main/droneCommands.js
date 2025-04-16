@@ -14,15 +14,11 @@ class DroneCommandManager {
             try {
                 // Initialize main command client
                 this.droneClient = dgram.createSocket('udp4');
-                this.droneClient.bind(() => {
-                    console.log('Command client ready');
-                });
+                this.droneClient.bind(resolve);
 
                 // Initialize state client
                 this.droneStateClient = dgram.createSocket('udp4');
-                this.droneStateClient.bind(DRONE_CONFIG.TELLO_STATE_PORT, () => {
-                    console.log('State client ready');
-                });
+                this.droneStateClient.bind(DRONE_CONFIG.TELLO_STATE_PORT, resolve);
 
                 this.droneStateClient.on('message', (msg) => {
                     if (this.stateCallback) {
@@ -46,12 +42,9 @@ class DroneCommandManager {
             let retryCount = 0;
 
             const attemptCommand = () => {
-                console.log(`Sending command: ${command} (attempt ${retryCount + 1}/${COMMAND_CONFIG.MAX_RETRIES})`);
-                
                 const messageHandler = (msg) => {
                     try {
                         const response = msg.toString('utf8').trim().replace(/\0/g, '');
-                        console.log(`Raw drone response to '${command}': ${JSON.stringify(response)}`);
 
                         if (!response) {
                             throw new Error('Empty response');
