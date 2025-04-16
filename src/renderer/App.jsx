@@ -33,13 +33,15 @@ function App() {
 
     // Recording status
     window.electronAPI.on('drone:recording-status', (recording) => {
-      console.log('Recording status:', recording);
+      console.log('[App] Received recording status update:', recording);
       dispatch(setRecordingStatus(recording));
     });
 
     window.electronAPI.on('drone:recording-stopped', (filename) => {
-      console.log('Recording saved:', filename);
+      console.log('[App] Recording saved:', filename);
       dispatch(setRecordingFiles(filename));
+      // Ensure recording status is set to false when recording stops
+      dispatch(setRecordingStatus(false));
     });
 
     // Error handling

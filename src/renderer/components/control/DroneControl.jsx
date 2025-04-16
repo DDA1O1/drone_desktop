@@ -6,7 +6,7 @@ import {
   // No longer need to dispatch connection/state changes from here
   // setDroneConnection,
   // setStreamEnabled,
-  // setRecordingStatus,
+  setRecordingStatus,
   // setRecordingFiles,
   // No longer need retry logic here
   // incrementRetryAttempts,
@@ -163,19 +163,48 @@ const DroneControl = () => {
   };
 
   const capturePhoto = () => {
+    console.log('[UI] Attempting to capture photo, stream enabled:', streamEnabled);
     if (!streamEnabled) {
       dispatch(setError('Video stream must be active to capture photo.'));
       return;
     }
-    window.electronAPI.send('drone:capture-photo');
+    console.log('[UI] Sending photo capture request');
+    window.electronAPI.invoke('photo:capture')
+      .then(result => {
+        console.log('[UI] Photo capture result:', result);
+        if (!result.success) {
+          dispatch(setError(result.error || 'Failed to capture photo'));
+        }
+      })
+      .catch(error => {
+        console.error('[UI] Photo capture error:', error);
+        dispatch(setError(`Failed to capture photo: ${error.message}`));
+      });
   };
 
   const toggleRecording = () => {
+    console.log('[UI] Attempting to toggle recording, stream enabled:', streamEnabled);
     if (!streamEnabled) {
       dispatch(setError('Video stream must be active to record.'));
       return;
     }
-    window.electronAPI.send('drone:recording-toggle');
+    console.log('[UI] Sending recording toggle request, current state:', isRecording);
+    const channel = isRecording ? 'recording:stop' : 'recording:start';
+    window.electronAPI.invoke(channel)
+      .then(result => {
+        console.log(`[UI] Recording ${isRecording ? 'stop' : 'start'} result:`, result);
+        if (!result.success) {
+          dispatch(setError(result.error || `Failed to ${isRecording ? 'stop' : 'start'} recording`));
+          // Reset recording status on error
+          dispatch(setRecordingStatus(false));
+        }
+      })
+      .catch(error => {
+        console.error(`[UI] Recording ${isRecording ? 'stop' : 'start'} error:`, error);
+        dispatch(setError(`Failed to ${isRecording ? 'stop' : 'start'} recording: ${error.message}`));
+        // Reset recording status on error
+        dispatch(setRecordingStatus(false));
+      });
   };
 
   // Clear error after 5 seconds
@@ -273,8 +302,9 @@ const DroneControl = () => {
           className={`group relative px-3 py-1.5 rounded-full flex items-center gap-2 ${
             streamEnabled 
               ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50' 
-              : 'bg-gray-500/20 border border-gray-500/30 cursor-not-allowed'
+              : 'bg-gray-500/20 border border-gray-500/30 cursor-not-allowed opacity-50'
           } backdrop-blur-sm transition-all duration-200`}
+          title={streamEnabled ? 'Capture Photo' : 'Enable stream to capture photos'}
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
@@ -299,19 +329,18 @@ const DroneControl = () => {
           <span className="text-sm font-medium text-white">Capture</span>
         </button>
 
-        {/* Record Button
-        // First check: Controls button functionality
-        // If no stream is active (streamEnabled = false), button cannot be clicked */}
+        {/* Record Button */}
         <button 
           onClick={toggleRecording}
           disabled={!streamEnabled}
           className={`group relative px-3 py-1.5 rounded-full flex items-center gap-2 ${
             streamEnabled
               ? isRecording 
-                ? 'bg-red-500/20 hover:bg-red-500/30 border border-red-500/50' // Red when recording
-                : 'bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/50' // Blue when ready to record
-              : 'bg-gray-500/20 border border-gray-500/30 cursor-not-allowed' // Gray when disabled (no stream)
+                ? 'bg-red-500/20 hover:bg-red-500/30 border border-red-500/50' 
+                : 'bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/50'
+              : 'bg-gray-500/20 border border-gray-500/30 cursor-not-allowed opacity-50'
           } backdrop-blur-sm transition-all duration-200`}
+          title={streamEnabled ? (isRecording ? 'Stop Recording' : 'Start Recording') : 'Enable stream to record'}
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
@@ -345,6 +374,13 @@ const DroneControl = () => {
           </span>
         </button>
       </div>
+
+      {/* Add debug info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="absolute bottom-4 left-4 text-xs text-white/50">
+          Stream: {streamEnabled ? 'ON' : 'OFF'} | Recording: {isRecording ? 'ON' : 'OFF'}
+        </div>
+      )}
 
       {/* Takeoff/Land Controls - Top Left */}
       <div className="absolute top-5 left-8 z-30 flex gap-3">
