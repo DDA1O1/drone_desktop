@@ -43,9 +43,9 @@ class WindowManager {
         }
 
         // DevTools can still be opened manually with Ctrl+Shift+I
-        // if (isDev) {
-        //     this.mainWindow.webContents.openDevTools();
-        // }
+        if (isDev) {
+            this.mainWindow.webContents.openDevTools();
+        }
 
         return this.mainWindow;
     }

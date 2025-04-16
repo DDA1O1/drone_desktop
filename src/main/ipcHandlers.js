@@ -1,4 +1,8 @@
 import { ipcMain } from 'electron';
+import { spawn } from 'child_process';
+import fs from 'fs';
+import { DRONE_CONFIG } from './config';
+import path from 'path';
 
 class IPCHandlerManager {
     constructor(droneCommandManager, streamManager, mediaManager, windowManager) {
@@ -31,6 +35,7 @@ class IPCHandlerManager {
             console.log('[Video] Received stream toggle request');
             try {
                 const isStreamActive = this.streamManager.ffmpegStreamProcess !== null;
+                console.log('[Video] Current stream status:', isStreamActive);
                 
                 if (!isStreamActive) {
                     // First time starting the stream
@@ -47,6 +52,7 @@ class IPCHandlerManager {
                 
                 // Just toggle the stream status in the UI - actual pause/play is handled by JSMpeg
                 const newStreamState = !this.windowManager.getStreamState();
+                console.log('[Video] Setting new stream state:', newStreamState);
                 this.windowManager.sendToRenderer('drone:stream-status', newStreamState);
                 console.log(`[Video] Stream ${newStreamState ? 'resumed' : 'paused'}`);
                 
@@ -54,6 +60,7 @@ class IPCHandlerManager {
                 console.error('[Video] Stream toggle error:', error);
                 this.windowManager.sendToRenderer('drone:error', `Failed to toggle video stream: ${error.message}`);
                 // Ensure stream status is updated in case of error
+                console.log('[Video] Setting stream state to false due to error');
                 this.windowManager.sendToRenderer('drone:stream-status', false);
                 // Only cleanup if we failed to start
                 if (!this.streamManager.ffmpegStreamProcess) {
@@ -94,6 +101,28 @@ class IPCHandlerManager {
             }
         });
 
+        // Photo capture
+        ipcMain.handle('photo:capture', async () => {
+            try {
+                if (!this.streamManager.ffmpegStreamProcess) {
+                    throw new Error('Video stream must be active to capture photo');
+                }
+
+                const outputPath = this.mediaManager.generateMediaPath('photo', '.jpg');
+                console.log('[Photo] Attempting to capture photo to:', outputPath);
+
+                const photoPath = await this.streamManager.capturePhoto(outputPath);
+                
+                // Notify renderer about successful capture
+                this.windowManager.sendToRenderer('drone:photo-captured', photoPath);
+                
+                return { success: true, data: photoPath };
+            } catch (error) {
+                console.error('[Photo] Error capturing photo:', error);
+                return { success: false, error: error.message };
+            }
+        });
+
         // Recording control
         ipcMain.handle('recording:start', async () => {
             try {
@@ -101,11 +130,15 @@ class IPCHandlerManager {
                 const success = await this.streamManager.startRecording(outputPath);
                 if (success) {
                     this.mediaManager.setCurrentRecordingPath(outputPath);
+                    // Explicitly update the UI recording status
+                    this.windowManager.sendToRenderer('drone:recording-status', true);
                     return { success: true, path: outputPath };
                 }
                 return { success: false, error: 'Failed to start recording' };
             } catch (error) {
-                console.error('Error starting recording:', error);
+                console.error('[Recording] Error starting recording:', error);
+                // Ensure UI is updated on error
+                this.windowManager.sendToRenderer('drone:recording-status', false);
                 return { success: false, error: error.message };
             }
         });
@@ -116,30 +149,22 @@ class IPCHandlerManager {
                 if (success) {
                     const path = this.mediaManager.getCurrentRecordingPath();
                     this.mediaManager.clearCurrentRecordingPath();
+                    // Explicitly update the UI recording status
+                    this.windowManager.sendToRenderer('drone:recording-status', false);
                     return { success: true, path };
                 }
                 return { success: false, error: 'No active recording' };
             } catch (error) {
-                console.error('Error stopping recording:', error);
-                return { success: false, error: error.message };
-            }
-        });
-
-        // Photo capture
-        ipcMain.handle('photo:capture', async () => {
-            try {
-                const outputPath = this.mediaManager.generateMediaPath('photo', '.jpg');
-                // Implement photo capture logic here
-                return { success: true, path: outputPath };
-            } catch (error) {
-                console.error('Error capturing photo:', error);
+                console.error('[Recording] Error stopping recording:', error);
+                // Ensure UI is updated on error
+                this.windowManager.sendToRenderer('drone:recording-status', false);
                 return { success: false, error: error.message };
             }
         });
     }
 
     cleanup() {
-        // Remove all listeners
+        // Remove all handlers
         ipcMain.removeHandler('drone:connect');
         ipcMain.removeHandler('drone:command');
         ipcMain.removeHandler('stream:start');
