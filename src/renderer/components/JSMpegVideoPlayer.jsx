@@ -47,8 +47,10 @@ const JSMpegVideoPlayer = () => {
     
     // Use player's built-in methods for subsequent play/pause
     if (streamEnabled) {
+      console.log('[Video] Stream enabled, resuming playback...');
       playerRef.current.play();
     } else {
+      console.log('[Video] Stream disabled, pausing playback...');
       playerRef.current.pause();
       // Reset reconnection state when stream is intentionally disabled
       reconnectAttemptsRef.current = 0;
@@ -88,67 +90,69 @@ const JSMpegVideoPlayer = () => {
     if (playerRef.current || !streamEnabled) return;
     
     try {
-      const url = `ws://${window.location.hostname}:3001`;
-      // Create new JSMpeg player instance with configuration
-      const player = new JSMpeg.VideoElement(videoRef.current, url, {
-        videoWidth: 640,
-        videoHeight: 480,
-        videoBufferSize: 512 * 1024,
+      const url = `ws://${window.location.hostname}:8082`;
+      console.log('[Video] Initializing JSMpeg player with WebSocket URL:', url);
+      
+      const player = new JSMpeg.Player(url, {
+        canvas: videoRef.current,
+        audio: false,
         streaming: true,
-        decodeFirstFrame: true,
-        chunkSize: 4096,
-        disableGl: false,
-        progressive: true,
-        throttled: false,
-        
-        // Event hooks for player state management
-        hooks: {
-          play: () => {
-            console.log('Video playback started');
-            dispatch(setStreamEnabled(true));
-            // Reset reconnection attempts on successful connection
-            reconnectAttemptsRef.current = 0;
-          },
-          pause: () => dispatch(setStreamEnabled(false)),
-          stop: () => dispatch(setStreamEnabled(false)),
-          error: (error) => {
-            console.error('JSMpeg error:', error);
-            dispatch(setError('Video playback error: ' + error.message));
-            if (streamEnabled) {
-              handleReconnect();
-            }
-          }
+        pauseWhenHidden: false,         // Continue playing even when tab is not active
+        disableGl: false,               // Enable WebGL for better performance
+        disableWebAssembly: false,      // Enable WebAssembly for better performance
+        preserveDrawingBuffer: false,    // Better performance
+        progressive: true,               // Enable progressive loading
+        throttled: true,                // Enable frame throttling for performance
+        chunkSize: 65536,               // Optimal chunk size for streaming
+        maxAudioLag: 0,                 // No audio, so set to 0
+        videoBufferSize: 512 * 1024,    // 512KB video buffer
+        onPlay: () => {
+          console.log('[Video] Playback started');
+          dispatch(setStreamEnabled(true));
+          reconnectAttemptsRef.current = 0;
+        },
+        onPause: () => {
+          console.log('[Video] Playback paused');
+          if (streamEnabled) handleReconnect();
+        },
+        onEnded: () => {
+          console.log('[Video] Playback ended');
+          if (streamEnabled) handleReconnect();
+        },
+        onStalled: () => {
+          console.log('[Video] Playback stalled');
+          if (streamEnabled) handleReconnect();
         }
       });
       
-      // Store player reference and mark as initialized
-      playerRef.current = player.player;
+      console.log('[Video] JSMpeg player instance created');
+      playerRef.current = player;
       isInitializedRef.current = true;
 
-      // Add WebSocket error handler
-      if (playerRef.current?.source?.socket) {
-        playerRef.current.source.socket.addEventListener('error', (error) => {
-          console.error('WebSocket error:', error);
+      // Setup WebSocket event listeners
+      if (player.source && player.source.socket) {
+        console.log('[Video] Setting up WebSocket event listeners');
+        
+        player.source.socket.addEventListener('error', (error) => {
+          console.error('[Video] WebSocket connection error:', error);
           dispatch(setError('WebSocket connection error: ' + error.message));
-          if (streamEnabled) {
-            handleReconnect();
-          }
+          if (streamEnabled) handleReconnect();
         });
 
-        playerRef.current.source.socket.addEventListener('close', () => {
-          console.log('WebSocket connection closed');
-          if (streamEnabled) {
-            handleReconnect();
-          }
+        player.source.socket.addEventListener('close', () => {
+          console.log('[Video] WebSocket connection closed');
+          if (streamEnabled) handleReconnect();
+        });
+
+        player.source.socket.addEventListener('open', () => {
+          console.log('[Video] WebSocket connection established successfully');
         });
       }
 
     } catch (err) {
-      console.error('Failed to initialize video:', err);
+      console.error('[Video] Failed to initialize JSMpeg player:', err);
       dispatch(setError('Failed to initialize video: ' + err.message));
-      if (streamEnabled) {
-        handleReconnect();
-      }
+      if (streamEnabled) handleReconnect();
     }
   };
 

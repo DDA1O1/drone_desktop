@@ -154,9 +154,11 @@ const DroneControl = () => {
   // ==== MEDIA CONTROLS ====
   const toggleVideoStream = () => {
     if (!droneConnected) {
+      console.log('[Video] Cannot start video - drone not connected');
       dispatch(setError('Drone not connected. Cannot toggle video.'));
       return;
     }
+    console.log(`[Video] Requesting video stream toggle (current state: ${streamEnabled ? 'ON' : 'OFF'})`);
     window.electronAPI.send('drone:stream-toggle');
   };
 

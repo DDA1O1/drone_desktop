@@ -50,7 +50,6 @@ function App() {
 
     // State updates
     window.electronAPI.on('drone:state-update', (state) => {
-      console.log('State update:', state);
       dispatch(setDroneState(state));
     });
 
