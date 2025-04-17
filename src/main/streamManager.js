@@ -2,8 +2,6 @@ import { WebSocketServer } from 'ws';
 import { spawn, exec } from 'child_process';
 import { DRONE_CONFIG } from './config';
 import dgram from 'dgram';
-import http from 'http';
-import { Readable } from 'stream';
 import path from 'path';
 import fs from 'fs';
 import { MEDIA_CONFIG } from './config';
