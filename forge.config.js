@@ -1,13 +1,14 @@
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
-export const packagerConfig = {
+export default{
+  packagerConfig: {
   asar: true,
   // Explicitly specify architectures you might build (optional but good practice)
   arch: ['x64', 'arm64']
-};
-export const rebuildConfig = {};
-export const makers = [
+},
+rebuildConfig: {},
+  makers: [
   {
     name: '@electron-forge/maker-squirrel',
     config: {},
@@ -24,8 +25,8 @@ export const makers = [
   //   name: '@electron-forge/maker-rpm',
   //   config: {},
   // },
-];
-export const plugins = [
+],
+plugins: [
   {
     name: '@electron-forge/plugin-vite',
     config: {
@@ -62,4 +63,5 @@ export const plugins = [
     [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
     [FuseV1Options.OnlyLoadAppFromAsar]: true,
   }),
-];
+],
+};
