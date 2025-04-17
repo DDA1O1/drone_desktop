@@ -31,19 +31,15 @@ class WindowManager {
             this.mainWindow.focus();
         });
 
-        // Development vs Production loading
-        const isDev = process.env.NODE_ENV === 'development';
-        const devServerUrl = 'http://localhost:5173';
-
-        if (isDev) {
-            this.mainWindow.loadURL(devServerUrl);
+        if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+            this.mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
         } else {
-            const prodPath = path.join(__dirname, '../../.vite/build/index.html');
+            const prodPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
             this.mainWindow.loadFile(prodPath);
         }
 
         // DevTools can still be opened manually with Ctrl+Shift+I
-        if (isDev) {
+        if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
             this.mainWindow.webContents.openDevTools();
         }
 
