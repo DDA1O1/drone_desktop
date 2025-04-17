@@ -16,6 +16,7 @@ class WindowManager {
             minHeight: WINDOW_CONFIG.MIN_HEIGHT,
             frame: true,
             show: false,
+            icon: path.join(__dirname, '../../assets/icons/Drone.png'),
             backgroundColor: WINDOW_CONFIG.BACKGROUND_COLOR,
             titleBarStyle: 'default',
             webPreferences: {

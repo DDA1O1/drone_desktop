@@ -6,12 +6,16 @@ export default {
     asar: true,
     // Explicitly specify architectures you might build (optional but good practice)
     arch: ['x64', 'arm64'],
+    icon: './assets/icons/icon', // no file extension required
   },
   rebuildConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        iconUrl: 'https://raw.githubusercontent.com/DDA1O1/drone_desktop/main/assets/icons/Drone.ico',
+        setupIcon: './assets/icons/Drone.ico'
+      },
     },
     // {
     //   name: '@electron-forge/maker-zip',
@@ -19,7 +23,11 @@ export default {
     // },
     {
       name: '@electron-forge/maker-deb',
-      config: {},
+      config: {
+        options: {
+          icon: './assets/icons/Drone.png'
+        }
+      },
     },
     // {
     //   name: '@electron-forge/maker-rpm',
