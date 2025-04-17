@@ -4,6 +4,10 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 export default {
   packagerConfig: {
     asar: true,
+    // --> Optional but recommended: Explicitly unpack ffmpeg-static if auto-unpack doesn't catch it
+    // asar: {
+    //   unpack: '**/node_modules/ffmpeg-static/**/*', // More specific: '**/node_modules/ffmpeg-static/ffmpeg*'
+    // },
     // Explicitly specify architectures you might build (optional but good practice)
     arch: ['x64', 'arm64'],
     icon: './assets/icons/Drone', // no file extension required
@@ -43,6 +47,11 @@ export default {
     // },
   ],
   plugins: [
+
+    {
+      name: '@electron-forge/plugin-auto-unpack-natives',
+      config: {}
+    },
     {
       name: '@electron-forge/plugin-vite',
       config: {

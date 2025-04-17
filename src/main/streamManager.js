@@ -5,6 +5,7 @@ import dgram from 'dgram';
 import path from 'path';
 import fs from 'fs';
 import { MEDIA_CONFIG } from './config';
+import ffmpegPath from 'ffmpeg-static';
 
 class StreamManager {
     constructor(windowManager) {
@@ -264,7 +265,7 @@ class StreamManager {
                 currentFramePath         // Current frame file
             ];
 
-            this.ffmpegStreamProcess = spawn('ffmpeg', args);
+            this.ffmpegStreamProcess = spawn(ffmpegPath, args);
 
             this.ffmpegStreamProcess.stdout.on('data', (data) => {
                 // Broadcast converted video data to all connected clients
@@ -357,7 +358,7 @@ class StreamManager {
         ];
 
         try {
-            this.ffmpegRecordProcess = spawn('ffmpeg', args);
+            this.ffmpegRecordProcess = spawn(ffmpegPath, args);
 
             // Create a message handler for recording
             const recordingMessageHandler = (msg) => {
