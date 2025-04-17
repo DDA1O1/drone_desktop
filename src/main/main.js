@@ -14,7 +14,7 @@ import IPCHandlerManager from './ipcHandlers';
 updateElectronApp({
   updateSource: {
     type: UpdateSourceType.ElectronPublicUpdateService,
-    repo: 'DDA1O1/electron-vite'
+    repo: 'DDA1O1/drone_desktop'
   }}); // additional configuration options available
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.

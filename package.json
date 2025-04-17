@@ -1,8 +1,8 @@
 {
-  "name": "my-app",
-  "productName": "my-app",
-  "version": "1.0.11",
-  "description": "My Electron application description",
+  "name": "drone_desktop",
+  "productName": "drone_desktop",
+  "version": "1.0.0",
+  "description": "Drone Desktop",
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
@@ -18,7 +18,7 @@
         {
           "name": "@electron-forge/maker-squirrel",
           "config": {
-            "name": "my-app"
+            "name": "drone_desktop"
           }
         },
         {
