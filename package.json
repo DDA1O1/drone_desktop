@@ -1,7 +1,7 @@
 {
   "name": "drone_desktop",
   "productName": "drone_desktop",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Drone Desktop",
   "main": ".vite/build/main.js",
   "scripts": {
