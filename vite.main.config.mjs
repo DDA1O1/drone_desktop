@@ -2,7 +2,13 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  optimizeDeps: {
-    include: ['ws']
+  build: { // <-- Add this build section
+    rollupOptions: {
+      external: [
+        'bufferutil', // Tell Vite/Rollup not to bundle this
+        'utf-8-validate',
+        'ffmpeg-static' // Also exclude this common optional ws dependency
+      ]
+    }
   }
 });
