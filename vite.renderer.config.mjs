@@ -21,7 +21,7 @@ export default defineConfig({
     },
     // Recommended build output structure for Electron Forge Vite plugin
     build: {
-        outDir: path.resolve(__dirname, 'dist'),
+        outDir: path.resolve(__dirname, '.vite/build'),
         emptyOutDir: true,
         assetsDir: 'assets',
         rollupOptions: {

@@ -1,9 +1,9 @@
 {
   "name": "drone_desktop",
   "productName": "drone_desktop",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "Drone Desktop",
-  "main": "dist/main.js",
+  "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
@@ -13,13 +13,7 @@
   },
   "config": {
     "forge": {
-      "packagerConfig": {
-        "ignore": [
-          "^/src",
-          "^/vite\\.",
-          "^/\\.vite"
-        ]
-      },
+      "packagerConfig": {},
       "makers": [
         {
           "name": "@electron-forge/maker-squirrel",
