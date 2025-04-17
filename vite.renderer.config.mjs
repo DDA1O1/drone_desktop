@@ -6,8 +6,6 @@ import path from 'node:path'; // <-- Import Node.js path module
 
 // https://vitejs.dev/config
 export default defineConfig({
-    root: path.resolve(__dirname, 'src/renderer'),
-    base: './',
     plugins: [
         react(), // <-- Make sure the React plugin is included
         tailwindcss(), // <-- Ensure you have this plugin if using Tailwind CSS
@@ -19,16 +17,4 @@ export default defineConfig({
             '@': path.resolve(__dirname, './src/renderer'),
         },
     },
-    // Recommended build output structure for Electron Forge Vite plugin
-    build: {
-        outDir: path.resolve(__dirname, '.vite/build'),
-        emptyOutDir: true,
-        assetsDir: 'assets',
-        rollupOptions: {
-            input: path.resolve(__dirname, 'src/renderer/index.html'),
-        }
-    },
-    server: {
-        port: 5173,
-    }
 });
