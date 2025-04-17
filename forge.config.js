@@ -6,15 +6,22 @@ export default {
     asar: true,
     // Explicitly specify architectures you might build (optional but good practice)
     arch: ['x64', 'arm64'],
-    icon: './assets/icons/icon', // no file extension required
+    icon: './assets/icons/Drone', // no file extension required
+    executableName: 'drone_desktop'
   },
   rebuildConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
       config: {
+        name: 'drone_desktop',
         iconUrl: 'https://raw.githubusercontent.com/DDA1O1/drone_desktop/main/assets/icons/Drone.ico',
-        setupIcon: './assets/icons/Drone.ico'
+        setupIcon: './assets/icons/Drone.ico',
+        loadingGif: './assets/gif/loading.gif',
+        setupExe: 'DroneDesktop-Setup.exe',
+        noMsi: true,
+        createDesktopShortcut: true,
+        shortcutName: 'Drone Desktop'
       },
     },
     // {
@@ -25,7 +32,8 @@ export default {
       name: '@electron-forge/maker-deb',
       config: {
         options: {
-          icon: './assets/icons/Drone.png'
+          icon: './assets/icons/Drone.png',
+          name: 'drone_desktop'
         }
       },
     },

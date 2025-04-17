@@ -17,7 +17,7 @@ updateElectronApp({
     repo: 'DDA1O1/drone_desktop'
   }}); // additional configuration options available
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+// // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
 }
