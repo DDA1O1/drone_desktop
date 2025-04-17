@@ -1,7 +1,7 @@
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
-export default{
+export default {
   packagerConfig: {
   asar: true,
   // Explicitly specify architectures you might build (optional but good practice)
