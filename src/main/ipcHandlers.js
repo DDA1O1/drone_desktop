@@ -1,8 +1,4 @@
 import { ipcMain } from 'electron';
-import { spawn } from 'child_process';
-import fs from 'fs';
-import { DRONE_CONFIG } from './config';
-import path from 'path';
 
 class IPCHandlerManager {
     constructor(droneCommandManager, streamManager, mediaManager, windowManager) {
