@@ -90,7 +90,8 @@ const JSMpegVideoPlayer = () => {
     if (playerRef.current || !streamEnabled) return;
     
     try {
-      const url = `ws://${window.location.hostname}:8082`;
+      const hostname = window.location.hostname || 'localhost';
+      const url = `ws://${hostname}:8082`;
       console.log('[Video] Initializing JSMpeg player with WebSocket URL:', url);
       
       const player = new JSMpeg.Player(url, {
