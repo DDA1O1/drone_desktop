@@ -5,7 +5,56 @@ import dgram from 'dgram';
 import path from 'path';
 import fs from 'fs';
 import { MEDIA_CONFIG } from './config';
-import ffmpegPath from 'ffmpeg-static';
+import { app } from 'electron';
+
+
+// --- Function to get the correct FFmpeg path ---
+function getFFmpegPath() {
+    const platform = process.platform;
+    const executableName = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  
+    // Use app.isPackaged for the most reliable check
+    if (app.isPackaged) {
+      // In production, construct the path relative to resourcesPath
+      const resourcesPath = process.resourcesPath;
+      console.log(`[FFmpeg Path] Running in production mode. Resources path: ${resourcesPath}`);
+      const ffmpegProdPath = path.join(resourcesPath, executableName);
+  
+      if (!fs.existsSync(ffmpegProdPath)) {
+         console.error(`[FFmpeg Path] Expected FFmpeg executable not found at: ${ffmpegProdPath}`);
+         // Consider showing an error dialog to the user here as well
+         throw new Error(`FFmpeg not found at ${ffmpegProdPath}. Check packaging process.`);
+      }
+      console.log(`[FFmpeg Path] Using production path: ${ffmpegProdPath}`);
+      return ffmpegProdPath;
+  
+    } else {
+      // In development, require it directly
+      console.log('[FFmpeg Path] Running in development mode.');
+      try {
+        // require() still works fine here for dev dependencies
+        const devPath = require('ffmpeg-static');
+        if (!fs.existsSync(devPath)) {
+          // This should ideally not happen if installed correctly
+          throw new Error(`ffmpeg-static path resolved to ${devPath}, but file does not exist.`);
+        }
+         console.log(`[FFmpeg Path] Using development path: ${devPath}`);
+        return devPath;
+      } catch (e) {
+        console.error('[FFmpeg Path] Failed to require ffmpeg-static in dev:', e);
+        throw new Error('ffmpeg-static not found. Did you install dependencies?');
+      }
+    }
+  }
+
+  
+// --- Get the path ONCE when the class/module loads ---
+const ffmpegExecutablePath = getFFmpegPath();
+if (!ffmpegExecutablePath) {
+  // This should ideally not happen if getFFmpegPath throws errors correctly
+  throw new Error("Failed to determine FFmpeg path.");
+}
+// ---
 
 class StreamManager {
     constructor(windowManager) {
@@ -265,7 +314,7 @@ class StreamManager {
                 currentFramePath         // Current frame file
             ];
 
-            this.ffmpegStreamProcess = spawn(ffmpegPath, args);
+            this.ffmpegStreamProcess = spawn(ffmpegExecutablePath, args);
 
             this.ffmpegStreamProcess.stdout.on('data', (data) => {
                 // Broadcast converted video data to all connected clients
@@ -339,26 +388,17 @@ class StreamManager {
         }
 
         const args = [
-            '-hide_banner',
-            '-loglevel', 'error',
-            '-f', 'h264',            // Input format is H.264
-            '-i', 'pipe:0',          // Read from stdin
-            '-c:v', 'libx264',       // Use H.264 codec
-            '-preset', 'ultrafast',   // Fastest encoding for minimal latency
-            '-tune', 'zerolatency',  // Optimize for zero latency
-            '-crf', '23',            // Constant Rate Factor (23 is a good balance of quality/size)
-            '-profile:v', 'high',    // High profile for better quality
-            '-level', '4.1',         // Compatibility level
-            '-movflags', '+faststart', // Enable streaming playback before download completes
-            '-maxrate', '2500k',     // Maximum bitrate
-            '-bufsize', '5000k',     // Buffer size (2x maxrate)
-            '-pix_fmt', 'yuv420p',   // Widely compatible pixel format
-            '-y',                    // Overwrite output file if exists
+            '-f', 'h264',           // Force H.264 format for input
+            '-i', 'pipe:0',         // Input from pipe
+            '-c:v', 'copy',         // Copy video stream without re-encoding
+            '-bsf:v', 'h264_mp4toannexb,dump_extra', // Add proper stream headers
+            '-movflags', '+faststart+frag_keyframe+empty_moov+default_base_moof',  // Optimize for streaming
+            '-y',                   // Overwrite output
             outputPath
         ];
 
         try {
-            this.ffmpegRecordProcess = spawn(ffmpegPath, args);
+            this.ffmpegRecordProcess = spawn(ffmpegExecutablePath, args);
 
             // Create a message handler for recording
             const recordingMessageHandler = (msg) => {
