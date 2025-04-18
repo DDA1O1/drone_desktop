@@ -39,37 +39,6 @@ jobs:
           name: windows-x64-artifact
           path: out/make/**/* # Upload squirrel/zip output
 
-  # Job to build for Windows ARM64
-  build-windows-arm64:
-    name: Build Windows (ARM64)
-    # --- USE NATIVE ARM64 RUNNER ---
-    runs-on: windows-11-arm
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install Dependencies
-        # npm ci will download win32-arm64 ffmpeg via ffmpeg-static
-        run: npm ci
-
-      - name: Build Windows arm64 (Make)
-        # Electron Forge should auto-detect win32/arm64 here, or use explicit flags
-        run: npm run make # Optional: -- --platform=win32 --arch=arm64
-
-      - name: Upload Windows arm64 Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-arm64-artifact
-          path: out/make/**/* # Upload squirrel/zip output
-
   # Job to build for Linux x64
   build-linux-x64:
     name: Build Linux (x64)
@@ -144,7 +113,7 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     # --- UPDATE DEPENDENCIES TO INCLUDE ALL 4 BUILD JOBS ---
-    needs: [build-windows-x64, build-windows-arm64, build-linux-x64, build-linux-arm64]
+    needs: [build-windows-x64, build-linux-x64, build-linux-arm64]
     permissions:
       contents: write # Needed to create releases and upload assets
 
@@ -163,11 +132,6 @@ jobs:
           name: windows-x64-artifact
           path: staging/windows-x64
 
-      - name: Download Windows arm64 Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-arm64-artifact
-          path: staging/windows-arm64
 
       - name: Download Linux x64 Artifact
         uses: actions/download-artifact@v4
@@ -200,21 +164,6 @@ jobs:
         # Continue even if no files are found (e.g., if maker changes)
         continue-on-error: true
 
-      - name: Rename Windows arm64 Artifacts for Uniqueness
-        # !! Verify this path matches the actual downloaded structure !!
-        working-directory: staging/windows-arm64/squirrel.windows/arm64
-        run: |
-          echo "--- Files before renaming in $(pwd) ---"; ls -l
-          for FILE in *; do
-            if [[ -f "$FILE" ]]; then
-              FILENAME="${FILE%.*}"; EXTENSION="${FILE##*.}"
-              if [[ "$FILENAME" == "$EXTENSION" ]] || [[ "$FILENAME" == "" ]]; then NEW_NAME="${FILE}-arm64"; else NEW_NAME="${FILENAME}-arm64.${EXTENSION}"; fi
-              echo "Renaming '$FILE' to '$NEW_NAME'"; mv "$FILE" "$NEW_NAME"
-            fi
-          done
-          echo "--- Files after renaming in $(pwd) ---"; ls -l
-        # Continue even if no files are found
-        continue-on-error: true
 
       # Optional: Rename Linux artifacts if needed (e.g., add arch to .deb)
       - name: Rename Linux x64 Artifacts for Uniqueness
