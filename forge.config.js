@@ -1,19 +1,29 @@
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import ffmpegStaticPath from 'ffmpeg-static';
+
+if (!ffmpegStaticPath) {
+  throw new Error('Could not resolve ffmpeg-static path. Is it installed?');
+}
+console.log(`[Forge Config] Found ffmpeg-static executable at: ${ffmpegStaticPath}`);
 
 export default {
   packagerConfig: {
     asar: true,
-    // --> Optional but recommended: Explicitly unpack ffmpeg-static if auto-unpack doesn't catch it
-    // asar: {
-    //   unpack: '**/node_modules/ffmpeg-static/**/*', // More specific: '**/node_modules/ffmpeg-static/ffmpeg*'
-    // },
-    // Explicitly specify architectures you might build (optional but good practice)
-    arch: ['x64', 'arm64'],
-    icon: './assets/icons/Drone', // no file extension required
-    executableName: 'drone_desktop'
+    icon: './assets/icons/Drone',
+    executableName: 'drone_desktop',
+    // --- USE extraResource INSTEAD OF HOOK ---
+    extraResource: [
+      ffmpegStaticPath // Provide the path to the file to include
+    ],
+    // ---
   },
   rebuildConfig: {},
+  // --- REMOVE THE HOOK ENTIRELY ---
+  // hooks: {
+  //   async packageAfterCopy(...) { /* ... */ }
+  // },
+  // ---
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
@@ -47,7 +57,11 @@ export default {
     // },
   ],
   plugins: [
-
+    // ---> Keep AutoUnpackNativesPlugin! <---
+    // Even though the hook copies the module into ASAR, this plugin is still
+    // needed to unpack the actual ffmpeg binary *from* the ASAR archive
+    // into app.asar.unpacked so it can be executed.
+    // Remove the duplicate AutoUnpackNativesPlugin entry if it exists
     {
       name: '@electron-forge/plugin-auto-unpack-natives',
       config: {}
@@ -55,11 +69,8 @@ export default {
     {
       name: '@electron-forge/plugin-vite',
       config: {
-        // `build` can specify multiple entry builds, which can be Main process, Preload scripts, Worker process, etc.
-        // If you are familiar with Vite configuration, it will look really familiar.
         build: [
           {
-            // `entry` is just an alias for `build.lib.entry` in the corresponding file of `config`.
             entry: 'src/main/main.js',
             config: 'vite.main.config.mjs',
           },
@@ -76,8 +87,6 @@ export default {
         ],
       },
     },
-    // Fuses are used to enable/disable various Electron functionality
-    // at package time, before code signing the application
     new FusesPlugin({
       version: FuseVersion.V1,
       [FuseV1Options.RunAsNode]: false,
