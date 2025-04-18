@@ -57,11 +57,7 @@ export default {
     // },
   ],
   plugins: [
-    // ---> Keep AutoUnpackNativesPlugin! <---
-    // Even though the hook copies the module into ASAR, this plugin is still
-    // needed to unpack the actual ffmpeg binary *from* the ASAR archive
-    // into app.asar.unpacked so it can be executed.
-    // Remove the duplicate AutoUnpackNativesPlugin entry if it exists
+    
     {
       name: '@electron-forge/plugin-auto-unpack-natives',
       config: {}
